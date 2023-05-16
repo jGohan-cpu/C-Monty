@@ -1,22 +1,18 @@
 #include "monty.h"
 
 /**
- * pint - Print the value at the top of the stack
- *
- * @head: Head pointer
- * @line_number: function used to count the lines
- *
- * Return: Nothing
+ * pint - prints the value at the top of the stack
+ * @stack: double pointer to the head of the stack
+ * @line_number: line number of the command in the Monty bytecode file
  */
-
-void pint(stack_t **head, __attribute__((unused)) unsigned int line_number)
+void pint(stack_t **stack, unsigned int line_number)
 {
-    const stack_t *ptr = *head; /*apunto el pointer al head pointer*/
+	if (!stack || !(*stack)) /* If stack is empty */
+	{
+		fprintf(stderr, "L%d: can't pint, stack empty\n", line_number);
+		exit(EXIT_FAILURE);
+	}
 
-    if (ptr == NULL)
-    {
-        fprintf(stderr, "L%d: can't pint, stack empty\n", line_number);
-        exit(EXIT_FAILURE);
-    }
-    printf("%d\n", (*ptr).n);
+	printf("%d\n", (*stack)->n); /* Print the value at the top of the stack */
 }
+

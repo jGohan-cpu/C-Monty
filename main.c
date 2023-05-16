@@ -1,88 +1,119 @@
 #include "monty.h"
 
-/**
- *  main - A function that executes the commands inside a monty file.
- * @argc: Contains the size of the arguments.
- * @argv: Contains the arguments.
- * Return: EXIT_SUCCES OR EXIT_FAILURE
- */
+global_t *global_variable = NULL;/*Initialize the global variable pointer to NULL*/
 
-char **montycmd = NULL; /*Global variable for dimensional array*/
-int line_number = 0;    /*Global variable for line count.*/
+/*Function prototype for execute_opcode*/
+void execute_opcode(stack_t **stack, char *opcode, unsigned int line_number);
+
+void free_stack(stack_t *stack)
+{
+	stack_t *temp;
+
+	while (stack)
+	{
+		temp = stack->next;
+		free(stack);
+		stack = temp;
+	}
+}
+
 int main(int argc, char **argv)
 {
-    int txtinput = 0;
-    size_t size = 0; /**/
-    char *text = NULL;
-    FILE *fd = NULL; /*Fooling getline(). Making file descriptor from fopen() file.*/
-    stack_t *mystack = NULL;
-    void (*f)(stack_t **, unsigned int) = NULL;
+	FILE *file;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	unsigned int line_number = 0;
+	char *opcode;
+	stack_t *stack = NULL;
 
-    if (argc != 2) /*If the user doesn't specify a file when executing.*/
-    {
-        fprintf(stderr, "USAGE: monty file\n");
-        exit(EXIT_FAILURE);
-    }
-    fd = fopen(argv[1], "r"); /*If file can't be open.*/
-    if (fd == NULL)
-    {
-        fprintf(stderr, "Error: Can't open file %s\n", argv[1]);
-        exit(EXIT_FAILURE);
-    }
-    while ((txtinput = getline(&text, &size, fd)) > -1)
-    {
-        line_number++; /*To know the line number of the file*/
-       if (count_words(text) == 0) /*if there is a blank line, ignore it, even if it has spaces*/
-        {
-            size = 0;
-            free(text);
-            text = NULL;
-            continue;
-        }
-        montycmd = separate(text, " \n"); /*Tokenzing the monty file*/
-        /*printf("Montycmd[0] is:%s\n", montycmd[0]);*/ /*for debuging*/
-        f = get_op_func(montycmd[0]);
-        if (f == NULL)
-        {
-            if(montycmd[0] == NULL)
-            {
-                arrayfree(montycmd);
-                free(text);
-                montycmd = NULL;
-                text = NULL;
-                continue;
-            }
-            fprintf(stderr, "L%d: unknown instruction %s\n", line_number, montycmd[0]);
-            freestack(mystack);
-            fclose(fd);
-            exit(EXIT_FAILURE);
-            
-        }
-        /*printf("Montycmd[1] is:%s\n", montycmd[1]);*/ /*For debugging*/
+	/*Check if the correct number of arguments is provided*/
+	if (argc != 2)
+	{
+		fprintf(stderr, "USAGE: monty file\n");
+		exit(EXIT_FAILURE);
+	}
 
-        if (montycmd[1] == NULL && strcmp("push", montycmd[0]) == 0)
-	    {
-	    	fprintf(stderr, "L%d: usage: push integer\n", line_number);
-            arrayfree(montycmd);
-            free(text);
-            freestack(mystack);
-            fclose(fd);
-			exit (EXIT_FAILURE);
-	    }
-        f(&mystack, line_number);
-        size = 0; /*Reset everything, 0/NULL, free the memory allocated*/
-        free(text);
-        text = NULL;
-        arrayfree(montycmd);
-        montycmd = NULL;
-    }
-    /*Reset everything again out of loop, 0/NULL, free the memory allocated*/
-    free(text);
-    text = NULL;
-    freestack(mystack);
-    arrayfree(montycmd);
-    montycmd = NULL;
-    fclose(fd);
-    fd = NULL;
-    exit(EXIT_SUCCESS);
+	/*Open the Monty bytecode file*/
+	file = fopen(argv[1], "r");
+	if (!file)
+	{
+		fprintf(stderr, "Error: Can't open file %s\n", argv[1]);
+		exit(EXIT_FAILURE);
+	}
+
+	/*Allocate memory for the global variable*/
+	global_variable = malloc(sizeof(global_t));
+	if (!global_variable)
+	{
+		fprintf(stderr, "Error: malloc failed\n");
+		exit(EXIT_FAILURE);
+	}
+	global_variable->argument = NULL;
+
+	/*Read the file line by line*/
+	while ((read = getline(&line, &len, file)) != -1)
+	{
+		line_number++;
+
+		/*Remove newline character if present*/
+		if (line[read - 1] == '\n')
+			line[read - 1] = '\0';
+
+		/*Tokenize the line to get the opcode and its argument (if any)*/
+		opcode = strtok(line, " \t");/*Added '\t' to handle tab characters*/
+		/*Check if the line is not empty or starts with a comment*/
+		if (opcode != NULL && opcode[0] != '#')
+		{
+		global_variable->argument = strtok(NULL, " \t");
+
+		/*Execute the opcode*/
+		execute_opcode(&stack, opcode, line_number);
+		}
+
+		/*Free the line buffer and reset the length*/
+		free(line);
+		line = NULL;
+		len = 0;
+	}
+
+	/*Close the file and free the memory*/
+	fclose(file);
+	free(line);
+	free(global_variable);
+	free_stack(stack);
+
+	return (EXIT_SUCCESS);
+}
+
+/*Execute the appropriate opcode function based on the given opcode string*/
+void execute_opcode(stack_t **stack, char *opcode, unsigned int line_number)
+{
+
+	/*Define an array of opcodes and their corresponding functions*/
+	instruction_t instructions[] = {
+		{"push", push},
+		{"pall", pall},
+		{"pint", pint},
+		{"pop", pop},
+		{"swap", swap},
+		{"add", add},
+		{"nop", nop},
+		{NULL, NULL}
+	};
+
+	/*Iterate through the instructions array*/
+	for (int i = 0; instructions[i].opcode; i++)
+	{
+		/*If the opcode matches execute its function*/
+		if (strcmp(opcode, instructions[i].opcode) == 0)
+		{
+			instructions[i].f(stack, line_number);
+			return;
+		}
+	}
+
+	/*If the opcode is not found print an error message and exit*/
+	fprintf(stderr, "L%d: unknown instruction %s\n", line_number, opcode);
+	exit(EXIT_FAILURE);
 }
